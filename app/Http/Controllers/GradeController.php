@@ -257,32 +257,36 @@ class GradeController extends Controller
      * 💾 Update student grades
      */
     public function update(Request $request, $studentID)
-{
-    $gradesInput = $request->input('grades', []); // ['MATH 101' => '95', ...]
+    {
+        $request->validate([
+            'grades' => 'required|array',
+            'grades.*' => 'nullable|string|max:10', // adjust to your Final_Rating type
+        ]);
 
-    foreach ($gradesInput as $subjectCode => $finalRating) {
-        // find the grade exactly
-        $grade = StudentGrade::where('studentID', $studentID)
-            ->where('subjectCode', $subjectCode)
-            ->first();
+        $gradesInput = $request->input('grades', []);
 
-        if (!$grade) {
-            continue; // skip if no matching grade
+        foreach ($gradesInput as $subjectCode => $finalRating) {
+            $grade = StudentGrade::where('studentID', $studentID)
+                ->where('subjectCode', $subjectCode)
+                ->first();
+
+            if (!$grade) {
+                continue;
+            }
+
+            if ($grade->is_locked) {
+                return redirect()->back()->withErrors([
+                    'locked' => '❌ These grades are locked by your Program Head and cannot be edited.'
+                ]);
+            }
+
+            $grade->Final_Rating = $finalRating;
+            $grade->save();
         }
 
-        if ($grade->is_locked) {
-            return redirect()->back()->withErrors([
-                'locked' => '❌ These grades are locked by your Program Head and cannot be edited.'
-            ]);
-        }
-
-        $grade->Final_Rating = $finalRating;
-        $grade->save();
+        return redirect()->route('grades.students', ['id' => $studentID])
+                         ->with('success', '✅ Grades updated successfully!');
     }
-
-    return redirect()->route('grades.students', ['id' => $studentID])
-                     ->with('success', '✅ Grades updated successfully!');
-}
 
     /**
      * 🔒 Lock all grades
