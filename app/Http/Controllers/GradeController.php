@@ -260,19 +260,32 @@ class GradeController extends Controller
     {
         $gradesInput = $request->input('grades', []);
     
+        if (empty($gradesInput)) {
+            return redirect()->back()->withErrors([
+                'empty' => '❌ No grades submitted.'
+            ]);
+        }
+    
         foreach ($gradesInput as $subjectCode => $finalRating) {
+            // Find the grade record
             $grade = StudentGrade::where('studentID', $studentID)
                 ->where('subjectCode', $subjectCode)
                 ->first();
-                if ($grade->is_locked) {
-                    return redirect()->back()->withErrors([
-                        'locked' => '❌ These grades are locked by your Program Head and cannot be edited.'
-                    ]);
-                }
-            if ($grade && !$grade->is_locked) {
-                $grade->Final_Rating = $finalRating;
-                $grade->save();
+    
+            if (!$grade) {
+                continue; // skip if grade record does not exist
             }
+    
+            // Check if locked
+            if ($grade->is_locked) {
+                return redirect()->back()->withErrors([
+                    'locked' => '❌ These grades are locked by your Program Head and cannot be edited.'
+                ]);
+            }
+    
+            // Update grade
+            $grade->Final_Rating = $finalRating;
+            $grade->save();
         }
     
         return redirect()->route('grades.students', ['id' => $studentID])
