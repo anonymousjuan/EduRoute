@@ -26,8 +26,8 @@ class StudentController extends Controller
         if ($search) {
             $query->where(function ($q) use ($search) {
                 $q->where('studentID', 'like', "%$search%")
-                    ->orWhere('studentName', 'like', "%$search%")
-                    ->orWhere('program', 'like', "%$search%");
+                  ->orWhere('studentName', 'like', "%$search%")
+                  ->orWhere('program', 'like', "%$search%");
             });
         }
 
@@ -89,11 +89,7 @@ class StudentController extends Controller
         }
     }
 
-<<<<<<< HEAD
     /** ✏️ Show form to edit a student */
-    public function edit($id)
-=======
-    /** ✏️ Show Edit Form */
     public function edit($id)
     {
         $student = Student::findOrFail($id);
@@ -103,20 +99,17 @@ class StudentController extends Controller
         return view('students.edit', compact('student', 'courses', 'faculties'));
     }
 
-    /** 💾 Update Student Info */
+    /** 💾 Update student info */
     public function update(Request $request, $id)
     {
         $student = Student::findOrFail($id);
 
         $request->validate([
             'studentID'       => 'required|unique:students,studentID,' . $id,
-            'firstName'       => 'required|string|max:100',
-            'lastName'        => 'required|string|max:100',
-            'gender'          => 'required|string|max:10',
-            'schoolYearTitle' => 'required|string|max:50',
-            'courseID'        => 'nullable|string|max:20',
-            'courseTitle'     => 'nullable|string|max:150',
-            'yearLevel'       => 'required|string|max:20',
+            'studentName'     => 'required',
+            'program'         => 'required',
+            'yearLevel'       => 'required',
+            'schoolYearTitle' => 'required',
         ]);
 
         $student->update($request->all());
@@ -124,16 +117,16 @@ class StudentController extends Controller
         return redirect()->route('students.index')->with('success', '✅ Student updated successfully!');
     }
 
-    /** 🗑️ Delete Student */
+    /** 🗑️ Delete student and related grades */
     public function destroy($id)
     {
         try {
             $student = Student::findOrFail($id);
 
-            // Delete related grades first to avoid foreign key constraint issues
+            // Delete related grades first
             DB::table('student_grades')->where('studentID', $student->studentID)->delete();
 
-            // Delete the student record
+            // Delete student
             $student->delete();
 
             return redirect()->route('students.index')
@@ -144,45 +137,6 @@ class StudentController extends Controller
         } catch (\Exception $e) {
             return redirect()->route('students.index')
                 ->with('error', '❌ Failed to delete student: ' . $e->getMessage());
-        }
-    }
-
-    /** 📥 Import Excel */
-    public function import(Request $request)
->>>>>>> experiment
-    {
-        $student = Student::findOrFail($id);
-        return view('students.edit', compact('student'));
-    }
-
-    /** 🔁 Update student info */
-    public function update(Request $request, $id)
-    {
-        $student = Student::findOrFail($id);
-
-        $request->validate([
-            'studentID' => 'required|unique:students,studentID,' . $id,
-            'studentName' => 'required',
-            'program' => 'required',
-            'yearLevel' => 'required',
-            'schoolYearTitle' => 'required',
-        ]);
-
-        $student->update($request->all());
-
-        return redirect()->route('students.index')->with('success', '✅ Student updated successfully!');
-    }
-
-    /** 🗑️ Delete a student */
-    public function destroy($id)
-    {
-        $student = Student::findOrFail($id);
-
-        try {
-            $student->delete();
-            return redirect()->route('students.index')->with('success', '🗑️ Student deleted successfully!');
-        } catch (\Throwable $e) {
-            return redirect()->route('students.index')->with('error', '❌ Failed to delete student: ' . $e->getMessage());
         }
     }
 
@@ -242,67 +196,6 @@ class StudentController extends Controller
     }
 
     /** 🧮 Generate next semester subjects */
-    public function generateSubjects($studentID)
-    {
-        $student = Student::where('studentID', $studentID)->latest()->firstOrFail();
-
-        if (session('last_generated') === $studentID) {
-            return back()->with('error', '⚠️ Subjects already generated recently.');
-        }
-
-        DB::beginTransaction();
-
-        try {
-            $numericYear = $this->getNumericYearLevel($student->yearLevel);
-            $nextYearLevel = $this->convertNumericToYear($numericYear + 1);
-
-            $semester = $student->semester === '1st' ? '2nd' : '1st';
-            $schoolYear = explode('-', $student->schoolYearTitle);
-            $nextSY = $semester === '1st'
-                ? ($schoolYear[0] + 1) . '-' . ($schoolYear[1] + 1)
-                : $student->schoolYearTitle;
-
-            $subjects = DB::table('subjects')
-                ->where('yearLevel', $nextYearLevel)
-                ->where('semester', $semester)
-                ->get();
-
-            foreach ($subjects as $sub) {
-                DB::table('student_grades')->updateOrInsert(
-                    ['studentID' => $studentID, 'subjectCode' => $sub->subjectCode],
-                    [
-                        'subjectTitle' => $sub->subjectTitle,
-                        'units' => $sub->units,
-                        'grade' => null,
-                        'remarks' => 'Not Yet Taken',
-                        'semester' => $semester,
-                        'schoolYearTitle' => $nextSY,
-                    ]
-                );
-            }
-
-<<<<<<< HEAD
-            Student::create([
-                'studentID' => $student->studentID,
-                'studentName' => $student->studentName,
-                'program' => $student->program,
-                'yearLevel' => $nextYearLevel,
-                'semester' => $semester,
-=======
-    /** 🧾 Transcript View */
-    public function transcript($studentID)
-    {
-        $student = Student::where('studentID', $studentID)->firstOrFail();
-        $grades = DB::table('student_grades')
-            ->where('studentID', $studentID)
-            ->orderBy('yearLevel')
-            ->orderBy('schoolYearTitle')
-            ->get();
-
-        return view('transcript', compact('student', 'grades'));
-    }
-
-    /** 🎓 Generate Next Semester Subjects */
     public function generateSubjects($studentID, Request $request)
     {
         try {
@@ -310,7 +203,7 @@ class StudentController extends Controller
             $student = Student::where('studentID', $studentID)->latest()->firstOrFail();
 
             if (session('last_generated') === $studentID) {
-                return $this->responseMessage($request, false, "⚠️ Generation already in progress. Try again later.");
+                return $this->responseMessage($request, false, "⚠️ Subjects already generated recently.");
             }
             session(['last_generated' => $studentID]);
 
@@ -321,13 +214,10 @@ class StudentController extends Controller
             $isFirst = Str::contains(strtolower($currentSY), '1st');
             $currentSemester = $isFirst ? '1st' : '2nd';
 
-            if ($currentSemester === '1st') {
-                $nextSemester = '2nd';
-                $nextSY = "2nd Semester AY {$startYear}-{$endYear}";
-            } else {
-                $nextSemester = '1st';
-                $nextSY = "1st Semester AY " . ($startYear + 1) . "-" . ($endYear + 1);
-            }
+            $nextSemester = $currentSemester === '1st' ? '2nd' : '1st';
+            $nextSY = $currentSemester === '1st'
+                ? "2nd Semester AY {$startYear}-{$endYear}"
+                : "1st Semester AY " . ($startYear + 1) . "-" . ($endYear + 1);
 
             DB::beginTransaction();
 
@@ -360,7 +250,6 @@ class StudentController extends Controller
             }
 
             $curriculumYear = in_array($nextYearNumeric, [1, 2]) ? '2024-2025' : '2022-2023';
-
             $nextSubjects = DB::table('curriculums')
                 ->where('year_of_implementation', $curriculumYear)
                 ->where('year_level', $nextYearNumeric)
@@ -413,37 +302,19 @@ class StudentController extends Controller
 
             DB::table('student_grades')->insert($subjectsToInsert);
             $student->update([
->>>>>>> experiment
                 'schoolYearTitle' => $nextSY,
             ]);
 
             DB::commit();
-<<<<<<< HEAD
-            session(['last_generated' => $studentID]);
-
-            return back()->with('success', '✅ Subjects for next semester generated successfully!');
-=======
             session()->forget('last_generated');
 
             return $this->responseMessage($request, true, "✅ Subjects for {$nextSY} generated successfully!");
->>>>>>> experiment
         } catch (\Throwable $e) {
             DB::rollBack();
-            return back()->with('error', '❌ Generation failed: ' . $e->getMessage());
+            return $this->responseMessage($request, false, '❌ Generation failed: ' . $e->getMessage());
         }
     }
 
-<<<<<<< HEAD
-    /** 🔢 Convert Year Level to Numeric */
-    private function getNumericYearLevel($level)
-    {
-        return match ($level) {
-            'First Year' => 1,
-            'Second Year' => 2,
-            'Third Year' => 3,
-            'Fourth Year' => 4,
-            default => 0,
-=======
     /** 🔧 Helper: Response */
     private function responseMessage($request, $success, $msg)
     {
@@ -452,7 +323,7 @@ class StudentController extends Controller
             : back()->with($success ? 'success' : 'error', $msg);
     }
 
-    /** 🔧 Helper: Year Conversion */
+    /** 🔢 Convert Year Level to Numeric */
     private function getNumericYearLevel($yearLevel)
     {
         return match (true) {
@@ -461,7 +332,6 @@ class StudentController extends Controller
             str_contains($yearLevel, '3') => 3,
             str_contains($yearLevel, '4') => 4,
             default => 1,
->>>>>>> experiment
         };
     }
 
