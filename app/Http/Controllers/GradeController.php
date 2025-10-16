@@ -258,36 +258,28 @@ class GradeController extends Controller
      */
     public function update(Request $request, $studentID)
     {
-        $request->validate([
-            'grades' => 'required|array',
-            'grades.*' => 'nullable|string|max:10', // adjust to your Final_Rating type
-        ]);
-
         $gradesInput = $request->input('grades', []);
-
+    
         foreach ($gradesInput as $subjectCode => $finalRating) {
             $grade = StudentGrade::where('studentID', $studentID)
                 ->where('subjectCode', $subjectCode)
                 ->first();
-
-            if (!$grade) {
-                continue;
+                if ($grade->is_locked) {
+                    return redirect()->back()->withErrors([
+                        'locked' => '❌ These grades are locked by your Program Head and cannot be edited.'
+                    ]);
+                }
+            if ($grade && !$grade->is_locked) {
+                $grade->Final_Rating = $finalRating;
+                $grade->save();
             }
-
-            if ($grade->is_locked) {
-                return redirect()->back()->withErrors([
-                    'locked' => '❌ These grades are locked by your Program Head and cannot be edited.'
-                ]);
-            }
-
-            $grade->Final_Rating = $finalRating;
-            $grade->save();
         }
-
+    
         return redirect()->route('grades.students', ['id' => $studentID])
                          ->with('success', '✅ Grades updated successfully!');
     }
-
+    
+    
     /**
      * 🔒 Lock all grades
      */
