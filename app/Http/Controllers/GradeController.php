@@ -257,29 +257,32 @@ class GradeController extends Controller
      * 💾 Update student grades
      */
     public function update(Request $request, $studentID)
-    {
-        $gradesInput = $request->input('grades', []);
+{
+    $gradesInput = $request->input('grades', []); // ['MATH 101' => '95', ...]
 
-        foreach ($gradesInput as $subjectCode => $value) {
-            $grade = StudentGrade::where('studentID', $studentID)
-                ->where('subjectCode', str_replace('_', ' ', $subjectCode))
-                ->first();
+    foreach ($gradesInput as $subjectCode => $finalRating) {
+        // find the grade exactly
+        $grade = StudentGrade::where('studentID', $studentID)
+            ->where('subjectCode', $subjectCode)
+            ->first();
 
-            if ($grade && $grade->is_locked) {
-                return redirect()->back()->withErrors([
-                    'locked' => '❌ These grades are locked by your Program Head and cannot be edited.'
-                ]);
-            }
-
-            if ($grade) {
-                $grade->Final_Rating = $value;
-                $grade->save();
-            }
+        if (!$grade) {
+            continue; // skip if no matching grade
         }
 
-        return redirect()->route('grades.students', ['studentID' => $studentID])
-                         ->with('success', '✅ Grades updated successfully!');
+        if ($grade->is_locked) {
+            return redirect()->back()->withErrors([
+                'locked' => '❌ These grades are locked by your Program Head and cannot be edited.'
+            ]);
+        }
+
+        $grade->Final_Rating = $finalRating;
+        $grade->save();
     }
+
+    return redirect()->route('grades.students', ['id' => $studentID])
+                     ->with('success', '✅ Grades updated successfully!');
+}
 
     /**
      * 🔒 Lock all grades
