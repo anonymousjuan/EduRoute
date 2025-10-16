@@ -2,7 +2,8 @@
     <x-slot name="header">
         <div class="flex justify-between items-center">
             <h2 class="font-semibold text-2xl text-gray-800 leading-tight">
-                ✏️ Edit Grades – <span class="text-indigo-600">{{ $student->lastName }}, {{ $student->firstName }}</span>
+                ✏️ Edit Grades –
+                <span class="text-indigo-600">{{ $student->lastName }}, {{ $student->firstName }}</span>
             </h2>
 
             <a href="{{ route('transcript.show', $student->studentID) }}"
@@ -27,62 +28,68 @@
                 <p class="text-gray-700"><strong>🎓 Course:</strong> {{ $student->courseTitle ?? 'N/A' }}</p>
             </div>
 
-            <!-- Grade Form & Table -->
-            <form action="{{ route('grades.update', $student->studentID) }}" method="POST">
-                @csrf
-                <!-- Use PUT if route is put -->
-                @method('POST') <!-- or 'PUT' if your route uses put -->
+            <!-- Grade Table -->
+            <div class="overflow-x-auto">
+                <table class="min-w-full border border-gray-300 rounded-lg text-center">
+                    <thead class="bg-indigo-600 text-white">
+                        <tr>
+                            <th class="px-4 py-3 border">Subject Code</th>
+                            <th class="px-4 py-3 border">Subject Title</th>
+                            <th class="px-4 py-3 border">Units</th>
+                            <th class="px-4 py-3 border">Current Grade</th>
+                            @if(!$grades->first()->is_locked)
+                                <th class="px-4 py-3 border">New Grade</th>
+                            @endif
+                        </tr>
+                    </thead>
 
-                <div class="overflow-x-auto">
-                    <table class="min-w-full border border-gray-300 rounded-lg text-center">
-                        <thead class="bg-indigo-600 text-white">
+                    <tbody class="bg-white divide-y divide-gray-200">
+                        @foreach($grades as $grade)
                             <tr>
-                                <th class="px-4 py-3 border">Subject Code</th>
-                                <th class="px-4 py-3 border">Subject Title</th>
-                                <th class="px-4 py-3 border">Units</th>
-                                <th class="px-4 py-3 border">Current Grade</th>
-                                @if(!$grades->first()->is_locked)
-                                    <th class="px-4 py-3 border">New Grade</th>
+                                <td class="px-4 py-3 border font-semibold text-gray-800">
+                                    {{ $grade->subjectCode }}
+                                </td>
+                                <td class="px-4 py-3 border text-gray-700">
+                                    {{ $grade->subjectTitle ?? 'N/A' }}
+                                </td>
+                                <td class="px-4 py-3 border text-gray-700">
+                                    {{ $grade->units ?? '—' }}
+                                </td>
+                                <td class="px-4 py-3 border text-gray-600">
+                                    {{ $grade->Final_Rating ?? '—' }}
+                                </td>
+                                @if(!$grade->is_locked)
+                                    <td class="px-4 py-3 border">
+                                        <input type="text"
+                                            name="grades[{{ str_replace(' ', '_', $grade->subjectCode) }}]"
+                                            value="{{ old('grades.' . str_replace(' ', '_', $grade->subjectCode), $grade->Final_Rating) }}"
+                                            class="border border-gray-300 rounded-lg px-2 py-1 w-24 text-center focus:ring-2 focus:ring-indigo-400 focus:outline-none">
+                                    </td>
                                 @endif
                             </tr>
-                        </thead>
+                        @endforeach
+                    </tbody>
+                </table>
+            </div>
 
-                        <tbody class="bg-white divide-y divide-gray-200">
-                            @foreach($grades as $grade)
-                                <tr>
-                                    <td class="px-4 py-3 border font-semibold text-gray-800">{{ $grade->subjectCode }}</td>
-                                    <td class="px-4 py-3 border text-gray-700">{{ $grade->subjectTitle ?? 'N/A' }}</td>
-                                    <td class="px-4 py-3 border text-gray-700">{{ $grade->units ?? '—' }}</td>
-                                    <td class="px-4 py-3 border text-gray-600">{{ $grade->Final_Rating ?? '—' }}</td>
-                                    @if(!$grade->is_locked)
-                                        <td class="px-4 py-3 border">
-                                            <input type="text"
-                                                name="grades[{{ $grade->subjectCode }}]"
-                                                value="{{ old('grades.' . $grade->subjectCode, $grade->Final_Rating) }}"
-                                                class="border border-gray-300 rounded-lg px-2 py-1 w-24 text-center focus:ring-2 focus:ring-indigo-400 focus:outline-none">
-                                        </td>
-                                    @endif
-                                </tr>
-                            @endforeach
-                        </tbody>
-                    </table>
-                </div>
+            <!-- Buttons -->
+            <div class="mt-6 flex justify-between items-center">
+                <a href="{{ route('grades.students', ['studentID' => $student->studentID]) }}"
+                   class="inline-flex items-center px-4 py-2 bg-gray-200 hover:bg-gray-300 text-gray-800 font-semibold rounded-lg transition">
+                    ⬅ Cancel
+                </a>
 
-                <!-- Buttons -->
-                <div class="mt-6 flex justify-between items-center">
-                    <a href="{{ route('grades.students', ['id' => $student->studentID]) }}"
-                       class="inline-flex items-center px-4 py-2 bg-gray-200 hover:bg-gray-300 text-gray-800 font-semibold rounded-lg transition">
-                        ⬅ Cancel
-                    </a>
-
-                    @if(!$grades->first()->is_locked)
+                @if(!$grades->first()->is_locked)
+                    <form action="{{ route('grades.update', $student->studentID) }}" method="POST">
+                        @csrf
+                        @method('PUT')
                         <button type="submit"
                                 class="inline-flex items-center px-6 py-2 bg-green-600 hover:bg-green-700 text-black font-semibold rounded-lg shadow transition">
                             💾 Save Changes
                         </button>
-                    @endif
-                </div>
-            </form>
+                    </form>
+                @endif
+            </div>
         </div>
     </div>
 </x-app-layout>
