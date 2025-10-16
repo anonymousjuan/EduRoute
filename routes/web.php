@@ -97,6 +97,8 @@ Route::prefix('grades')->middleware(['auth', 'verified'])->group(function () {
     // Edit all grades of a student
     Route::get('/{studentID}/edit', [GradeController::class, 'edit'])->name('grades.edit');
     Route::get('/{studentID}/edit-year/{yearLevel}', [GradeController::class, 'editByYear'])->name('grades.editByYear');
+    Route::resource('students', StudentController::class);
+    Route::delete('/students/{student}', [StudentController::class, 'destroy'])->name('students.destroy');
 
 });
 
