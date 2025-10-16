@@ -125,7 +125,7 @@ Route::prefix('grades')->middleware(['auth', 'verified'])->group(function () {
         // Show all students (transcript-like view)
 Route::get('/grades/students/{studentID}', [GradeController::class, 'showStudents'])->name('grades.students');
 Route::post('/students/import', [StudentController::class, 'import'])->name('students.import');
-
+Route::get('/grades/students/create', [GradeController::class, 'create'])->name('grades.students.create');
 
 
 

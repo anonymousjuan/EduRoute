@@ -18,7 +18,7 @@ class GradeController extends Controller
     public function index(Request $request)
     {
         $search = $request->input('search');
-        $yearLevel = $request->input('yearLevel'); // 🎓 Capture year level filter
+        $yearLevel = $request->input('yearLevel');
 
         $query = Grade::select(
                 'studentID',
@@ -56,7 +56,6 @@ class GradeController extends Controller
             ")
             ->orderBy('lastName', 'ASC');
 
-        // 🔍 Search filter
         if ($search) {
             $searchLower = strtolower($search);
             $query->where(function ($q) use ($searchLower) {
@@ -69,7 +68,6 @@ class GradeController extends Controller
             });
         }
 
-        // 🎓 Year level filter
         if (!empty($yearLevel)) {
             $query->where('yearLevel', $yearLevel);
         }
@@ -82,7 +80,47 @@ class GradeController extends Controller
     }
 
     /**
-     * 🎓 Show student transcript by ID (JSON or DB)
+     * 🆕 Create new grade form
+     */
+    public function create()
+    {
+        $students = Student::orderBy('lastName')->get();
+        return view('grades.students.create', compact('students'));
+    }
+
+    /**
+     * 💾 Store new grade record
+     */
+    public function store(Request $request)
+    {
+        $request->validate([
+            'studentID' => 'required|exists:students,studentID',
+            'subjectCode' => 'required|string|max:50',
+            'subjectTitle' => 'required|string|max:255',
+            'Final_Rating' => 'nullable|string|max:10',
+            'yearLevel' => 'required|integer',
+            'courseTitle' => 'nullable|string|max:255',
+            'schoolYearTitle' => 'nullable|string|max:255',
+            'Faculty' => 'nullable|string|max:255',
+        ]);
+
+        StudentGrade::create([
+            'studentID' => $request->studentID,
+            'subjectCode' => $request->subjectCode,
+            'subjectTitle' => $request->subjectTitle,
+            'Final_Rating' => $request->Final_Rating,
+            'yearLevel' => $request->yearLevel,
+            'courseTitle' => $request->courseTitle,
+            'schoolYearTitle' => $request->schoolYearTitle,
+            'Faculty' => $request->Faculty,
+            'is_locked' => false,
+        ]);
+
+        return redirect()->route('grades.index')->with('success', '✅ Grade record added successfully!');
+    }
+
+    /**
+     * 🎓 Show student transcript by ID
      */
     public function show($studentId)
     {
@@ -106,7 +144,6 @@ class GradeController extends Controller
             }
 
             $student = $grades->first();
-
         } else {
             $grades = Grade::where('studentID', $studentId)
                 ->orderByRaw("CAST(yearLevel AS UNSIGNED) ASC")
@@ -172,7 +209,7 @@ class GradeController extends Controller
     }
 
     /**
-     * 👨‍🎓 Show student details and grades (for transcript view)
+     * 👨‍🎓 Show student details and grades
      */
     public function showStudents($id)
     {
@@ -182,14 +219,13 @@ class GradeController extends Controller
                     ->orderBy('subjectCode', 'ASC')
                     ->get();
 
-        // Group by year level
         $groupedByYear = $grades->groupBy('yearLevel');
 
         return view('grades.students', compact('student', 'grades', 'groupedByYear'));
     }
 
     /**
-     * ✏️ Edit grades by specific year level
+     * ✏️ Edit grades by year level
      */
     public function editByYear($studentID, $yearLevel)
     {
@@ -220,46 +256,46 @@ class GradeController extends Controller
     /**
      * 💾 Update student grades
      */
-   public function update(Request $request, $studentID)
-{
-    $gradesInput = $request->input('grades', []);
+    public function update(Request $request, $studentID)
+    {
+        $gradesInput = $request->input('grades', []);
 
-    foreach ($gradesInput as $subjectCode => $value) {
-        $grade = StudentGrade::where('studentID', $studentID)
-            ->where('subjectCode', str_replace('_', ' ', $subjectCode))
-            ->first();
+        foreach ($gradesInput as $subjectCode => $value) {
+            $grade = StudentGrade::where('studentID', $studentID)
+                ->where('subjectCode', str_replace('_', ' ', $subjectCode))
+                ->first();
 
-        if ($grade && $grade->is_locked) {
-            return redirect()->back()->withErrors([
-                'locked' => '❌ These grades are locked by your Program Head and cannot be edited.'
-            ]);
+            if ($grade && $grade->is_locked) {
+                return redirect()->back()->withErrors([
+                    'locked' => '❌ These grades are locked by your Program Head and cannot be edited.'
+                ]);
+            }
+
+            if ($grade) {
+                $grade->Final_Rating = $value;
+                $grade->save();
+            }
         }
 
-        if ($grade) {
-            $grade->Final_Rating = $value;
-            $grade->save();
-        }
+        return redirect()->route('grades.students', ['studentID' => $studentID])
+                         ->with('success', '✅ Grades updated successfully!');
     }
 
-    return redirect()->route('grades.students', ['studentID' => $studentID])
-                     ->with('success', '✅ Grades updated successfully!');
-}
-
+    /**
+     * 🔒 Lock all grades
+     */
     public function lockAll()
-{
-    // Update all grades to be locked
-    StudentGrade::query()->update(['is_locked' => true]);
+    {
+        StudentGrade::query()->update(['is_locked' => true]);
+        return redirect()->back()->with('success', '✅ All grades have been locked by the Program Head.');
+    }
 
-    return redirect()->back()->with('success', '✅ All grades have been locked by the Program Head.');
-}
-/**
- * 🔓 Unlock all grades (Program Head action)
- */
-public function unlockAll()
-{
-    StudentGrade::query()->update(['is_locked' => false]);
-
-    return redirect()->back()->with('success', '✅ All grades have been unlocked.');
-}
-
+    /**
+     * 🔓 Unlock all grades
+     */
+    public function unlockAll()
+    {
+        StudentGrade::query()->update(['is_locked' => false]);
+        return redirect()->back()->with('success', '✅ All grades have been unlocked.');
+    }
 }
