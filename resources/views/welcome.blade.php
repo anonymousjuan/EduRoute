@@ -201,7 +201,7 @@
 <!-- Hero Section -->
 <section class="hero" style="background-image: url('{{ $hero->image ? asset($hero->image) : asset('images/psych-bg.jpg') }}');">
   <div class="hero-content">
-    <h1>{{ $hero->title ?? 'Bachelor of Arts in Mostoles' }}</h1>
+    <h1>{{ $hero->title ?? 'Bachelor of Arts in Dark' }}</h1>
     <p>{{ $hero->subtitle ?? 'Discover knowledge, explore human behavior, and build your future in Psychology.' }}</p>
     <a href="#about" class="btn btn-primary btn-lg"><i class="fa-solid fa-arrow-down"></i> Learn More</a>
   </div>
