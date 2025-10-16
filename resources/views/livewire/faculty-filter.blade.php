@@ -38,7 +38,7 @@
                         <span>👨‍🏫 {{ $facultyName }}</span>
 
                         <span class="flex gap-2" wire:click.stop>
-                            <a href="{{ route('students.create') }}" 
+                            <a href="{{ route('subjects.create') }}" 
                                class="bg-green-600 text-black px-2 py-1 rounded hover:bg-green-700 text-sm">
                                 🎓 Add Student
                             </a>
