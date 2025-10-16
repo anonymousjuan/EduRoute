@@ -198,130 +198,143 @@ class StudentController extends Controller
     }
 
     /** 🎓 Generate Next Semester Subjects */
-    public function generateSubjects($studentID, Request $request)
-    {
-        try {
-            $unitLimit = (int) $request->input('unitLimit', 0);
-            $student = Student::where('studentID', $studentID)->latest()->firstOrFail();
+   /** 🎓 Generate Next Semester Subjects */
+public function generateSubjects($studentID, Request $request)
+{
+    try {
+        $unitLimit = (int) $request->input('unitLimit', 0);
+        $student = Student::where('studentID', $studentID)->latest()->firstOrFail();
 
-            if (session('last_generated') === $studentID) {
-                return $this->responseMessage($request, false, "⚠️ Generation already in progress. Try again later.");
-            }
-            session(['last_generated' => $studentID]);
+        if (session('last_generated') === $studentID) {
+            return $this->responseMessage($request, false, "⚠️ Generation already in progress. Try again later.");
+        }
+        session(['last_generated' => $studentID]);
 
-            $currentSY = $student->schoolYearTitle;
-            preg_match('/(\d{4})-(\d{4})/', $currentSY, $match);
-            $startYear = (int)($match[1] ?? now()->year);
-            $endYear = (int)($match[2] ?? ($startYear + 1));
-            $isFirst = Str::contains(strtolower($currentSY), '1st');
-            $currentSemester = $isFirst ? '1st' : '2nd';
+        $currentSY = $student->schoolYearTitle;
+        preg_match('/(\d{4})-(\d{4})/', $currentSY, $match);
+        $startYear = (int)($match[1] ?? now()->year);
+        $endYear = (int)($match[2] ?? ($startYear + 1));
+        $isFirst = Str::contains(strtolower($currentSY), '1st');
+        $currentSemester = $isFirst ? '1st' : '2nd';
 
-            if ($currentSemester === '1st') {
-                $nextSemester = '2nd';
-                $nextSY = "2nd Semester AY {$startYear}-{$endYear}";
-            } else {
-                $nextSemester = '1st';
-                $nextSY = "1st Semester AY " . ($startYear + 1) . "-" . ($endYear + 1);
-            }
+        $nextSemester = $currentSemester === '1st' ? '2nd' : '1st';
+        $nextSY = $currentSemester === '1st'
+            ? "2nd Semester AY {$startYear}-{$endYear}"
+            : "1st Semester AY " . ($startYear + 1) . "-" . ($endYear + 1);
 
-            DB::beginTransaction();
+        DB::beginTransaction();
 
-            $alreadyGenerated = DB::table('student_grades')
-                ->where('studentID', $studentID)
-                ->where('schoolYearTitle', $nextSY)
-                ->lockForUpdate()
-                ->exists();
+        // Prevent double generation
+        $alreadyGenerated = DB::table('student_grades')
+            ->where('studentID', $studentID)
+            ->where('schoolYearTitle', $nextSY)
+            ->lockForUpdate()
+            ->exists();
 
-            if ($alreadyGenerated) {
-                DB::rollBack();
-                return $this->responseMessage($request, false, "⚠️ {$nextSY} already generated.");
-            }
-
-            $currentYearNumeric = $this->getNumericYearLevel($student->yearLevel);
-            $nextYearNumeric = $currentSemester === '2nd'
-                ? min($currentYearNumeric + 1, 4)
-                : $currentYearNumeric;
-            $nextYearLevel = $this->convertNumericToYear($nextYearNumeric);
-
-            $grades = DB::table('student_grades')
-                ->where('studentID', $studentID)
-                ->get(['subjectCode', 'Final_Rating', 'Retake_Grade']);
-
-            $passedSubjects = [];
-            foreach ($grades as $g) {
-                $grade = $g->Retake_Grade ?: $g->Final_Rating;
-                if ($grade === null || $grade === '' || in_array(strtoupper($grade), ['INC', 'IP', 'D', 'F'])) continue;
-                if (is_numeric($grade) && $grade <= 3.0) $passedSubjects[] = $g->subjectCode;
-            }
-
-            $curriculumYear = in_array($nextYearNumeric, [1, 2]) ? '2024-2025' : '2022-2023';
-
-            $nextSubjects = DB::table('curriculums')
-                ->where('year_of_implementation', $curriculumYear)
-                ->where('year_level', $nextYearNumeric)
-                ->where('semester', $nextSemester)
-                ->get();
-
-            $subjectsToInsert = [];
-            $totalUnits = 0;
-
-            foreach ($nextSubjects as $subj) {
-                $prereqs = array_filter(array_map('trim', explode(',', (string)$subj->prerequisite)));
-                $allPassed = true;
-                foreach ($prereqs as $p) {
-                    if ($p && !in_array($p, $passedSubjects)) {
-                        $allPassed = false;
-                        break;
-                    }
-                }
-
-                if (!$allPassed || in_array($subj->course_no, $passedSubjects)) continue;
-                if ($unitLimit > 0 && ($totalUnits + $subj->units) > $unitLimit) break;
-
-                $subjectsToInsert[] = [
-                    'studentID'       => $student->studentID,
-                    'lastName'        => $student->lastName,
-                    'firstName'       => $student->firstName,
-                    'middleName'      => $student->middleName,
-                    'suffix'          => $student->suffix,
-                    'gender'          => $student->gender,
-                    'schoolYearTitle' => $nextSY,
-                    'courseID'        => $student->courseID,
-                    'courseTitle'     => $student->courseTitle,
-                    'yearLevel'       => $nextYearLevel,
-                    'subjectCode'     => $subj->course_no,
-                    'subjectTitle'    => $subj->descriptive_title,
-                    'units'           => $subj->units,
-                    'Final_Rating'    => null,
-                    'Retake_Grade'    => null,
-                    'created_at'      => now(),
-                    'updated_at'      => now(),
-                ];
-
-                $totalUnits += $subj->units;
-            }
-
-            if (empty($subjectsToInsert)) {
-                DB::rollBack();
-                return $this->responseMessage($request, false, "⚠️ No eligible subjects found for {$nextSY}.");
-            }
-
-            DB::table('student_grades')->insert($subjectsToInsert);
-            $student->update([
-                'schoolYearTitle' => $nextSY,
-                'yearLevel'       => $nextYearLevel,
-            ]);
-
-            DB::commit();
-            session()->forget('last_generated');
-
-            return $this->responseMessage($request, true, "✅ Subjects for {$nextSY} generated successfully!");
-        } catch (\Throwable $e) {
+        if ($alreadyGenerated) {
             DB::rollBack();
             session()->forget('last_generated');
-            return $this->responseMessage($request, false, '❌ ' . $e->getMessage());
+            return $this->responseMessage($request, false, "⚠️ {$nextSY} already generated.");
         }
+
+        // Fetch all current grades
+        $grades = DB::table('student_grades')
+            ->where('studentID', $studentID)
+            ->get(['subjectCode', 'Final_Rating', 'Retake_Grade']);
+
+        // Check for incomplete grades (null, empty, or IP)
+        $incomplete = $grades->first(function ($g) {
+            $grade = $g->Retake_Grade ?: $g->Final_Rating;
+            return $grade === null || $grade === '' || strtoupper($grade) === 'IP';
+        });
+
+        if ($incomplete) {
+            DB::rollBack();
+            session()->forget('last_generated');
+            return $this->responseMessage($request, false, "⚠️ Cannot generate subjects because some grades are incomplete.");
+        }
+
+        // Collect passed subjects
+        $passedSubjects = [];
+        foreach ($grades as $g) {
+            $grade = $g->Retake_Grade ?: $g->Final_Rating;
+            if (is_numeric($grade) && $grade <= 3.0) $passedSubjects[] = $g->subjectCode;
+        }
+
+        $currentYearNumeric = $this->getNumericYearLevel($student->yearLevel);
+        $nextYearNumeric = $currentSemester === '2nd'
+            ? min($currentYearNumeric + 1, 4)
+            : $currentYearNumeric;
+        $nextYearLevel = $this->convertNumericToYear($nextYearNumeric);
+
+        $curriculumYear = in_array($nextYearNumeric, [1, 2]) ? '2024-2025' : '2022-2023';
+        $nextSubjects = DB::table('curriculums')
+            ->where('year_of_implementation', $curriculumYear)
+            ->where('year_level', $nextYearNumeric)
+            ->where('semester', $nextSemester)
+            ->get();
+
+        $subjectsToInsert = [];
+        $totalUnits = 0;
+
+        foreach ($nextSubjects as $subj) {
+            $prereqs = array_filter(array_map('trim', explode(',', (string)$subj->prerequisite)));
+            $allPassed = true;
+            foreach ($prereqs as $p) {
+                if ($p && !in_array($p, $passedSubjects)) {
+                    $allPassed = false;
+                    break;
+                }
+            }
+
+            if (!$allPassed || in_array($subj->course_no, $passedSubjects)) continue;
+            if ($unitLimit > 0 && ($totalUnits + $subj->units) > $unitLimit) break;
+
+            $subjectsToInsert[] = [
+                'studentID'       => $student->studentID,
+                'lastName'        => $student->lastName,
+                'firstName'       => $student->firstName,
+                'middleName'      => $student->middleName,
+                'suffix'          => $student->suffix,
+                'gender'          => $student->gender,
+                'schoolYearTitle' => $nextSY,
+                'courseID'        => $student->courseID,
+                'courseTitle'     => $student->courseTitle,
+                'yearLevel'       => $nextYearLevel,
+                'subjectCode'     => $subj->course_no,
+                'subjectTitle'    => $subj->descriptive_title,
+                'units'           => $subj->units,
+                'Final_Rating'    => null,
+                'Retake_Grade'    => null,
+                'created_at'      => now(),
+                'updated_at'      => now(),
+            ];
+
+            $totalUnits += $subj->units;
+        }
+
+        if (empty($subjectsToInsert)) {
+            DB::rollBack();
+            session()->forget('last_generated');
+            return $this->responseMessage($request, false, "⚠️ No eligible subjects found for {$nextSY}.");
+        }
+
+        DB::table('student_grades')->insert($subjectsToInsert);
+        $student->update([
+            'schoolYearTitle' => $nextSY,
+            'yearLevel'       => $nextYearLevel,
+        ]);
+
+        DB::commit();
+        session()->forget('last_generated');
+
+        return $this->responseMessage($request, true, "✅ Subjects for {$nextSY} generated successfully!");
+    } catch (\Throwable $e) {
+        DB::rollBack();
+        session()->forget('last_generated');
+        return $this->responseMessage($request, false, '❌ ' . $e->getMessage());
     }
+}
 
     /** 🔧 Helper: Response */
     private function responseMessage($request, $success, $msg)
