@@ -18,184 +18,130 @@ class StudentController extends Controller
     public function index(Request $request)
     {
         $search = $request->input('search');
-        $schoolYearFilter = $request->input('school_year');
+        $schoolYear = $request->input('schoolYear');
 
-        $query = Student::query();
+        $latestIds = Student::selectRaw('MAX(id) as id')
+            ->when($schoolYear, fn($q) => $q->where('schoolYearTitle', $schoolYear))
+            ->groupBy('studentID');
 
-        // 🔍 Search filter
         if ($search) {
-            $query->where(function ($q) use ($search) {
-                $q->where('studentID', 'like', "%$search%")
-                  ->orWhere('studentName', 'like', "%$search%")
-                  ->orWhere('program', 'like', "%$search%");
-            });
+            $query = Student::whereIn('id', $latestIds)
+                ->where(function ($q) use ($search) {
+                    $q->where('studentID', 'like', "%$search%")
+                        ->orWhere('firstName', 'like', "%$search%")
+                        ->orWhere('lastName', 'like', "%$search%");
+                });
+
+            return view('students.index', [
+                'search'        => $search,
+                'searchResults' => $query->orderBy('lastName')->paginate(25),
+                'studentsByYear'=> null,
+                'schoolYears'   => Student::select('schoolYearTitle')->distinct()->orderBy('schoolYearTitle', 'desc')->pluck('schoolYearTitle'),
+                'activeSY'      => $schoolYear,
+            ]);
         }
 
-        // 🎓 Filter by School Year
-        if ($schoolYearFilter) {
-            $query->where('schoolYearTitle', $schoolYearFilter);
-        }
-
-        // 📘 Group by studentID (only latest per student)
-        $students = $query
-            ->select(DB::raw('MAX(id) as id'))
-            ->groupBy('studentID')
-            ->pluck('id');
-
-        $latestStudents = Student::whereIn('id', $students)
-            ->orderBy('yearLevel', 'asc')
-            ->paginate(10);
-
+        $baseQuery = Student::whereIn('id', $latestIds)->orderBy('lastName');
         $studentsByYear = [
-            'First Year' => Student::where('yearLevel', 'First Year')->paginate(10),
-            'Second Year' => Student::where('yearLevel', 'Second Year')->paginate(10),
-            'Third Year' => Student::where('yearLevel', 'Third Year')->paginate(10),
-            'Fourth Year' => Student::where('yearLevel', 'Fourth Year')->paginate(10),
+            '1st Year' => (clone $baseQuery)->where('yearLevel', '1st Year')->paginate(25, ['*'], 'first_page'),
+            '2nd Year' => (clone $baseQuery)->where('yearLevel', '2nd Year')->paginate(25, ['*'], 'second_page'),
+            '3rd Year' => (clone $baseQuery)->where('yearLevel', '3rd Year')->paginate(25, ['*'], 'third_page'),
+            '4th Year' => (clone $baseQuery)->where('yearLevel', '4th Year')->paginate(25, ['*'], 'fourth_page'),
         ];
 
-        $schoolYears = Student::select('schoolYearTitle')->distinct()->pluck('schoolYearTitle');
-
-        return view('students.index', compact(
-            'latestStudents',
-            'studentsByYear',
-            'search',
-            'schoolYears',
-            'schoolYearFilter'
-        ));
+        return view('students.index', [
+            'search'        => null,
+            'searchResults' => null,
+            'studentsByYear'=> $studentsByYear,
+            'schoolYears'   => Student::select('schoolYearTitle')->distinct()->orderBy('schoolYearTitle', 'desc')->pluck('schoolYearTitle'),
+            'activeSY'      => $schoolYear,
+        ]);
     }
 
-    /** ➕ Show form to create a student */
+    /** ➕ Show Create Student Form */
     public function create()
     {
-        return view('students.create');
-    }
-
-    /** 💾 Store a new student */
-    public function store(Request $request)
-    {
-        $request->validate([
-            'studentID' => 'required|unique:students',
-            'studentName' => 'required',
-            'program' => 'required',
-            'yearLevel' => 'required',
-            'schoolYearTitle' => 'required',
-        ]);
-
-        try {
-            Student::create($request->all());
-            return redirect()->route('students.index')->with('success', '✅ Student added successfully!');
-        } catch (\Throwable $e) {
-            return back()->with('error', '❌ Failed to save student: ' . $e->getMessage());
-        }
-    }
-
-    /** ✏️ Show form to edit a student */
-    public function edit($id)
-    {
-        $student = Student::findOrFail($id);
         $courses = DB::table('courses')->select('id', 'courseTitle')->get();
         $faculties = DB::table('faculties')->select('id', 'name')->get();
 
-        return view('students.edit', compact('student', 'courses', 'faculties'));
+        return view('students.create', compact('courses', 'faculties'));
     }
 
-    /** 💾 Update student info */
-    public function update(Request $request, $id)
+    /** 💾 Store New Student */
+    public function store(Request $request)
     {
-        $student = Student::findOrFail($id);
-
         $request->validate([
-            'studentID'       => 'required|unique:students,studentID,' . $id,
-            'studentName'     => 'required',
-            'program'         => 'required',
-            'yearLevel'       => 'required',
-            'schoolYearTitle' => 'required',
+            'studentID'       => 'required|unique:students,studentID',
+            'firstName'       => 'required|string|max:100',
+            'lastName'        => 'required|string|max:100',
+            'gender'          => 'required|string|max:10',
+            'schoolYearTitle' => 'required|string|max:50',
+            'courseID'        => 'nullable|string|max:20',
+            'courseTitle'     => 'nullable|string|max:150',
+            'yearLevel'       => 'required|string|max:20',
         ]);
 
-        $student->update($request->all());
+        Student::create($request->all());
 
-        return redirect()->route('students.index')->with('success', '✅ Student updated successfully!');
+        return redirect()->route('students.index')->with('success', '✅ Student added successfully!');
     }
 
-    /** 🗑️ Delete student and related grades */
-    public function destroy($id)
-    {
-        try {
-            $student = Student::findOrFail($id);
-
-            // Delete related grades first
-            DB::table('student_grades')->where('studentID', $student->studentID)->delete();
-
-            // Delete student
-            $student->delete();
-
-            return redirect()->route('students.index')
-                ->with('success', '🗑️ Student deleted successfully!');
-        } catch (\Illuminate\Database\QueryException $e) {
-            return redirect()->route('students.index')
-                ->with('error', '❌ Database error while deleting student: ' . $e->getMessage());
-        } catch (\Exception $e) {
-            return redirect()->route('students.index')
-                ->with('error', '❌ Failed to delete student: ' . $e->getMessage());
-        }
-    }
-
-    /** 📤 Import students from Excel/CSV */
+    /** 📥 Import Excel */
     public function import(Request $request)
     {
-        $request->validate([
-            'file' => 'required|mimes:xlsx,csv,txt',
-        ]);
+        $request->validate(['file' => 'required|mimes:xlsx,csv,txt']);
+        Excel::import(new StudentsImport, $request->file('file'));
+        return back()->with('success', '✅ Students imported successfully!');
+    }
+
+    /** 📥 Import CSV */
+    public function importCsv(Request $request)
+    {
+        $request->validate(['file' => 'required|mimes:csv,txt|max:2048']);
 
         try {
-            $file = $request->file('file');
-            $extension = $file->getClientOriginalExtension();
+            $csv = Reader::createFromPath($request->file('file')->getRealPath(), 'r');
+            $csv->setHeaderOffset(0);
+            $records = Statement::create()->process($csv);
 
-            DB::transaction(function () use ($file, $extension) {
-                if ($extension === 'csv' || $extension === 'txt') {
-                    $csv = Reader::createFromPath($file->getRealPath(), 'r');
-                    $csv->setHeaderOffset(0);
-                    $records = Statement::create()->process($csv);
-
-                    foreach ($records as $record) {
-                        Student::updateOrCreate(
-                            ['studentID' => $record['studentID']],
-                            [
-                                'studentName' => $record['studentName'],
-                                'program' => $record['program'],
-                                'yearLevel' => $record['yearLevel'],
-                                'schoolYearTitle' => $record['schoolYearTitle'],
-                            ]
-                        );
-                    }
-                } else {
-                    Excel::import(new StudentsImport, $file);
-                }
-            });
-
-            return back()->with('success', '✅ Students imported successfully!');
+            DB::beginTransaction();
+            foreach ($records as $r) {
+                Student::updateOrCreate(
+                    ['studentID' => $r['studentID']],
+                    [
+                        'firstName'       => $r['firstName'] ?? null,
+                        'lastName'        => $r['lastName'] ?? null,
+                        'middleName'      => $r['middleName'] ?? null,
+                        'gender'          => strtoupper($r['gender'] ?? ''),
+                        'schoolYearTitle' => $r['schoolYearTitle'] ?? null,
+                        'courseID'        => $r['courseID'] ?? null,
+                        'courseTitle'     => $r['courseTitle'] ?? null,
+                        'yearLevel'       => $r['yearLevel'] ?? null,
+                    ]
+                );
+            }
+            DB::commit();
+            return back()->with('success', '✅ CSV Imported Successfully!');
         } catch (Exception $e) {
-            return back()->with('error', '❌ Import failed: ' . $e->getMessage());
+            DB::rollBack();
+            return back()->with('error', '❌ CSV Import failed: ' . $e->getMessage());
         }
     }
 
-    /** 📄 View transcript of student */
+    /** 🧾 Transcript View */
     public function transcript($studentID)
     {
-        $student = Student::where('studentID', $studentID)->latest()->firstOrFail();
-
+        $student = Student::where('studentID', $studentID)->firstOrFail();
         $grades = DB::table('student_grades')
-            ->join('subjects', 'student_grades.subjectCode', '=', 'subjects.subjectCode')
-            ->where('student_grades.studentID', $studentID)
-            ->select('student_grades.*', 'subjects.subjectTitle', 'subjects.units')
-            ->orderBy('student_grades.schoolYearTitle', 'asc')
-            ->orderBy('student_grades.semester', 'asc')
+            ->where('studentID', $studentID)
+            ->orderBy('yearLevel')
+            ->orderBy('schoolYearTitle')
             ->get();
 
-        return view('students.transcript', compact('student', 'grades'));
+        return view('transcript', compact('student', 'grades'));
     }
 
-    /** 🧮 Generate next semester subjects */
+    /** 🎓 Generate Next Semester Subjects (strictly one semester only) */
     public function generateSubjects($studentID, Request $request)
     {
         try {
@@ -203,7 +149,7 @@ class StudentController extends Controller
             $student = Student::where('studentID', $studentID)->latest()->firstOrFail();
 
             if (session('last_generated') === $studentID) {
-                return $this->responseMessage($request, false, "⚠️ Subjects already generated recently.");
+                return $this->responseMessage($request, false, "⚠️ Generation already in progress. Try again later.");
             }
             session(['last_generated' => $studentID]);
 
@@ -214,11 +160,15 @@ class StudentController extends Controller
             $isFirst = Str::contains(strtolower($currentSY), '1st');
             $currentSemester = $isFirst ? '1st' : '2nd';
 
-            $nextSemester = $currentSemester === '1st' ? '2nd' : '1st';
-            $nextSY = $currentSemester === '1st'
-                ? "2nd Semester AY {$startYear}-{$endYear}"
-                : "1st Semester AY " . ($startYear + 1) . "-" . ($endYear + 1);
+            if ($currentSemester === '1st') {
+                $nextSemester = '2nd';
+                $nextSY = "2nd Semester AY {$startYear}-{$endYear}";
+            } else {
+                $nextSemester = '1st';
+                $nextSY = "1st Semester AY " . ($startYear + 1) . "-" . ($endYear + 1);
+            }
 
+            // 🔒 Transaction lock to prevent duplicate generation
             DB::beginTransaction();
 
             $alreadyGenerated = DB::table('student_grades')
@@ -229,7 +179,7 @@ class StudentController extends Controller
 
             if ($alreadyGenerated) {
                 DB::rollBack();
-                return $this->responseMessage($request, false, "⚠️ {$nextSY} already generated.");
+                return $this->responseMessage($request, false, "⚠️ {$nextSY} already generated. Only one semester allowed per generation.");
             }
 
             $currentYearNumeric = $this->getNumericYearLevel($student->yearLevel);
@@ -250,6 +200,7 @@ class StudentController extends Controller
             }
 
             $curriculumYear = in_array($nextYearNumeric, [1, 2]) ? '2024-2025' : '2022-2023';
+
             $nextSubjects = DB::table('curriculums')
                 ->where('year_of_implementation', $curriculumYear)
                 ->where('year_level', $nextYearNumeric)
@@ -303,19 +254,22 @@ class StudentController extends Controller
             DB::table('student_grades')->insert($subjectsToInsert);
             $student->update([
                 'schoolYearTitle' => $nextSY,
+                'yearLevel'       => $nextYearLevel,
             ]);
 
             DB::commit();
             session()->forget('last_generated');
 
             return $this->responseMessage($request, true, "✅ Subjects for {$nextSY} generated successfully!");
+
         } catch (\Throwable $e) {
             DB::rollBack();
-            return $this->responseMessage($request, false, '❌ Generation failed: ' . $e->getMessage());
+            session()->forget('last_generated');
+            return $this->responseMessage($request, false, '❌ ' . $e->getMessage());
         }
     }
 
-    /** 🔧 Helper: Response */
+    /** 🔧 Response Helper */
     private function responseMessage($request, $success, $msg)
     {
         return $request->ajax()
@@ -323,7 +277,7 @@ class StudentController extends Controller
             : back()->with($success ? 'success' : 'error', $msg);
     }
 
-    /** 🔢 Convert Year Level to Numeric */
+    /** 🔧 Year conversions */
     private function getNumericYearLevel($yearLevel)
     {
         return match (true) {
@@ -335,15 +289,14 @@ class StudentController extends Controller
         };
     }
 
-    /** 🔤 Convert Numeric to Year Level */
     private function convertNumericToYear($num)
     {
         return match ($num) {
-            1 => 'First Year',
-            2 => 'Second Year',
-            3 => 'Third Year',
-            4 => 'Fourth Year',
-            default => 'Unknown',
+            1 => '1st Year',
+            2 => '2nd Year',
+            3 => '3rd Year',
+            4 => '4th Year',
+            default => '1st Year',
         };
     }
 }
