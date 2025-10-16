@@ -117,6 +117,31 @@ class StudentController extends Controller
         return redirect()->route('students.index')->with('success', '✅ Student updated successfully!');
     }
 
+    /** 🗑️ Delete Student */
+    public function destroy($id)
+    {
+        try {
+            $student = Student::findOrFail($id);
+
+            // ✅ Delete related student grades first (avoid foreign key constraint errors)
+            DB::table('student_grades')->where('studentID', $student->studentID)->delete();
+
+            // ✅ Delete the student record
+            $student->delete();
+
+            return redirect()->route('students.index')
+                ->with('success', '🗑️ Student deleted successfully!');
+        } catch (\Illuminate\Database\QueryException $e) {
+            // ⚠️ Database constraint or FK violation
+            return redirect()->route('students.index')
+                ->with('error', '❌ Cannot delete this student because related records exist in other tables.');
+        } catch (\Exception $e) {
+            // ⚠️ Any other unexpected error
+            return redirect()->route('students.index')
+                ->with('error', '❌ Failed to delete student: ' . $e->getMessage());
+        }
+    }
+
     /** 📥 Import Excel */
     public function import(Request $request)
     {
