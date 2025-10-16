@@ -146,6 +146,9 @@ Route::post('/students/import', [StudentController::class, 'import'])->name('stu
     |--------------------------------------------------------------------------
     */
     Route::resource('enrolled', EnrolledController::class);
+Route::resource('curriculum', CurriculumController::class);
+Route::get('/curriculum/{curriculum}/edit', [CurriculumController::class, 'edit'])->name('curriculum.edit');
+Route::get('/curriculum/{id}/edit', [CurriculumController::class, 'edit'])->name('curriculum.edit');
 
     Route::get('/curriculum/import', [CurriculumController::class, 'importView'])->name('curriculum.import.view');
     Route::post('/curriculum/import-docx', [CurriculumController::class, 'importDocx'])->name('curriculum.import.docx');

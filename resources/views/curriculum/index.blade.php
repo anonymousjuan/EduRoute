@@ -121,18 +121,19 @@
             style="background-color: #800000; color: white; padding: 8px 15px; border-radius: 5px; font-weight: bold;">
             🖨️ Print
         </button>
-       {{-- Delete Curriculum Year Button --}}
-    @if(Auth::user()->role !== 'dean')
-        <form action="{{ route('curriculum.deleteYear', ['year' => $year]) }}" method="POST" onsubmit="return confirm('Are you sure you want to delete the entire curriculum for year {{ $year }}? This action cannot be undone.')" style="margin: 0;">
-            @csrf
-            @method('DELETE')
-            <button type="submit" 
-                style="background-color: #ff4d4d; color: white; padding: 8px 15px; border-radius: 5px; font-weight: bold;">
-                🗑️ Delete Curriculum Year
-            </button>
-        </form>
-    @endif
-</div>
+
+        {{-- Delete Curriculum Year Button --}}
+        @if(Auth::user()->role !== 'dean')
+            <form action="{{ route('curriculum.deleteYear', ['year' => $year]) }}" method="POST" onsubmit="return confirm('Are you sure you want to delete the entire curriculum for year {{ $year }}? This action cannot be undone.')" style="margin: 0;">
+                @csrf
+                @method('DELETE')
+                <button type="submit" 
+                    style="background-color: #ff4d4d; color: white; padding: 8px 15px; border-radius: 5px; font-weight: bold;">
+                    🗑️ Delete Curriculum Year
+                </button>
+            </form>
+        @endif
+    </div>
 
     <div class="year-title">
         Year of Implementation: {{ $year }}
@@ -184,7 +185,7 @@
                             <tr>
                                 <td>
                                     @if(Auth::user()->role !== 'dean' && $course && !empty($course->id))
-                                        <a href="{{ route('curriculum.edit', ['id' => $course->id, 'semester' => 1]) }}" class="text-blue-600 hover:underline">
+                                        <a href="{{ route('curriculum.edit', ['curriculum' => $course->id, 'semester' => 1]) }}" class="text-blue-600 hover:underline">
                                             {{ $course->course_no ?? 'N/A' }}
                                         </a>
                                     @else
@@ -193,7 +194,7 @@
                                 </td>
                                 <td>
                                     @if(Auth::user()->role !== 'dean' && $course && !empty($course->id))
-                                        <a href="{{ route('curriculum.edit', ['id' => $course->id, 'semester' => 1]) }}" class="text-blue-600 hover:underline">
+                                        <a href="{{ route('curriculum.edit', ['curriculum' => $course->id, 'semester' => 1]) }}" class="text-blue-600 hover:underline">
                                             {{ $course->descriptive_title ?? 'Untitled' }}
                                         </a>
                                     @else
@@ -248,7 +249,7 @@
                             <tr>
                                 <td>
                                     @if(Auth::user()->role !== 'dean' && $course && !empty($course->id))
-                                        <a href="{{ route('curriculum.edit', ['id' => $course->id, 'semester' => 2]) }}" class="text-blue-600 hover:underline">
+                                        <a href="{{ route('curriculum.edit', ['curriculum' => $course->id, 'semester' => 2]) }}" class="text-blue-600 hover:underline">
                                             {{ $course->course_no ?? 'N/A' }}
                                         </a>
                                     @else
@@ -257,7 +258,7 @@
                                 </td>
                                 <td>
                                     @if(Auth::user()->role !== 'dean' && $course && !empty($course->id))
-                                        <a href="{{ route('curriculum.edit', ['id' => $course->id, 'semester' => 2]) }}" class="text-blue-600 hover:underline">
+                                        <a href="{{ route('curriculum.edit', ['curriculum' => $course->id, 'semester' => 2]) }}" class="text-blue-600 hover:underline">
                                             {{ $course->descriptive_title ?? 'Untitled' }}
                                         </a>
                                     @else
