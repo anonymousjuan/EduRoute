@@ -86,6 +86,37 @@ class StudentController extends Controller
         return redirect()->route('students.index')->with('success', '✅ Student added successfully!');
     }
 
+    /** ✏️ Show Edit Form */
+    public function edit($id)
+    {
+        $student = Student::findOrFail($id);
+        $courses = DB::table('courses')->select('id', 'courseTitle')->get();
+        $faculties = DB::table('faculties')->select('id', 'name')->get();
+
+        return view('students.edit', compact('student', 'courses', 'faculties'));
+    }
+
+    /** 💾 Update Student Info */
+    public function update(Request $request, $id)
+    {
+        $student = Student::findOrFail($id);
+
+        $request->validate([
+            'studentID'       => 'required|unique:students,studentID,' . $id,
+            'firstName'       => 'required|string|max:100',
+            'lastName'        => 'required|string|max:100',
+            'gender'          => 'required|string|max:10',
+            'schoolYearTitle' => 'required|string|max:50',
+            'courseID'        => 'nullable|string|max:20',
+            'courseTitle'     => 'nullable|string|max:150',
+            'yearLevel'       => 'required|string|max:20',
+        ]);
+
+        $student->update($request->all());
+
+        return redirect()->route('students.index')->with('success', '✅ Student updated successfully!');
+    }
+
     /** 📥 Import Excel */
     public function import(Request $request)
     {
@@ -141,7 +172,7 @@ class StudentController extends Controller
         return view('transcript', compact('student', 'grades'));
     }
 
-    /** 🎓 Generate Next Semester Subjects (strictly one semester only) */
+    /** 🎓 Generate Next Semester Subjects */
     public function generateSubjects($studentID, Request $request)
     {
         try {
@@ -168,7 +199,6 @@ class StudentController extends Controller
                 $nextSY = "1st Semester AY " . ($startYear + 1) . "-" . ($endYear + 1);
             }
 
-            // 🔒 Transaction lock to prevent duplicate generation
             DB::beginTransaction();
 
             $alreadyGenerated = DB::table('student_grades')
@@ -179,7 +209,7 @@ class StudentController extends Controller
 
             if ($alreadyGenerated) {
                 DB::rollBack();
-                return $this->responseMessage($request, false, "⚠️ {$nextSY} already generated. Only one semester allowed per generation.");
+                return $this->responseMessage($request, false, "⚠️ {$nextSY} already generated.");
             }
 
             $currentYearNumeric = $this->getNumericYearLevel($student->yearLevel);
@@ -261,7 +291,6 @@ class StudentController extends Controller
             session()->forget('last_generated');
 
             return $this->responseMessage($request, true, "✅ Subjects for {$nextSY} generated successfully!");
-
         } catch (\Throwable $e) {
             DB::rollBack();
             session()->forget('last_generated');
@@ -269,7 +298,7 @@ class StudentController extends Controller
         }
     }
 
-    /** 🔧 Response Helper */
+    /** 🔧 Helper: Response */
     private function responseMessage($request, $success, $msg)
     {
         return $request->ajax()
@@ -277,7 +306,7 @@ class StudentController extends Controller
             : back()->with($success ? 'success' : 'error', $msg);
     }
 
-    /** 🔧 Year conversions */
+    /** 🔧 Helper: Year Conversion */
     private function getNumericYearLevel($yearLevel)
     {
         return match (true) {
