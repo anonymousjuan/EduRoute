@@ -123,20 +123,18 @@ class StudentController extends Controller
         try {
             $student = Student::findOrFail($id);
 
-            // ✅ Delete related student grades first (avoid foreign key constraint errors)
+            // Delete related grades first to avoid foreign key constraint issues
             DB::table('student_grades')->where('studentID', $student->studentID)->delete();
 
-            // ✅ Delete the student record
+            // Delete the student record
             $student->delete();
 
             return redirect()->route('students.index')
                 ->with('success', '🗑️ Student deleted successfully!');
         } catch (\Illuminate\Database\QueryException $e) {
-            // ⚠️ Database constraint or FK violation
             return redirect()->route('students.index')
-                ->with('error', '❌ Cannot delete this student because related records exist in other tables.');
+                ->with('error', '❌ Database error while deleting student: ' . $e->getMessage());
         } catch (\Exception $e) {
-            // ⚠️ Any other unexpected error
             return redirect()->route('students.index')
                 ->with('error', '❌ Failed to delete student: ' . $e->getMessage());
         }
