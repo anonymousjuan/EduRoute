@@ -22,13 +22,11 @@
     </div>
 
     {{-- 📑 Year Tabs --}}
-    <div class="flex border-b mb-4 overflow-x-auto">
+    <div class="flex border-b mb-4">
         @foreach ($studentsByYear as $yearLabel => $students)
             <button wire:click="setTab('{{ $yearLabel }}')"
-                    class="px-4 py-2 whitespace-nowrap focus:outline-none transition 
-                        {{ $tab === $yearLabel 
-                            ? 'border-b-4 border-blue-600 text-blue-600 font-semibold' 
-                            : 'text-gray-600 hover:text-blue-600' }}">
+                    class="px-4 py-2 focus:outline-none transition 
+                        {{ $tab === $yearLabel ? 'border-b-4 border-blue-600 text-blue-600 font-semibold' : 'text-gray-600 hover:text-blue-600' }}">
                 {{ $yearLabel }}
                 <span class="text-xs text-gray-500">({{ $students->total() }})</span>
             </button>
@@ -36,8 +34,8 @@
     </div>
 
     {{-- 📋 Year-based Table --}}
-    <div class="overflow-x-auto border border-gray-200 rounded-lg">
-        <table class="min-w-full text-xs">
+    <div class="overflow-x-auto">
+        <table class="min-w-full border border-gray-200 text-xs">
             <thead class="bg-gray-50">
                 <tr class="text-gray-700">
                     <th class="px-2 py-1 border">ID</th>
@@ -57,6 +55,7 @@
             <tbody>
                 @forelse($studentsByYear[$tab] as $student)
                     <tr class="hover:bg-gray-50 text-gray-700 transition">
+
                         {{-- 🧾 Clickable fields that open transcript --}}
                         <td class="px-2 py-1 border text-blue-600 hover:underline cursor-pointer"
                             wire:click="viewTranscript('{{ $student->studentID }}')">
@@ -79,26 +78,12 @@
                         <td class="px-2 py-1 border">{{ $student->courseTitle }}</td>
                         <td class="px-2 py-1 border">{{ $tab }}</td>
 
-                        {{-- 🧰 Actions --}}
                         @if(Auth::user()->role !== 'dean')
-                            <td class="px-2 py-1 border">
-                                <div class="flex space-x-1">
-                                    <a href="{{ route('students.edit', $student->id) }}" 
-                                       class="px-2 py-0.5 bg-yellow-500 text-white rounded hover:bg-yellow-600 text-xs shadow">
-                                        ✏️ Edit
-                                    </a>
-
-                                    <form action="{{ route('students.destroy', $student->id) }}" 
-                                          method="POST" 
-                                          onsubmit="return confirm('Delete this student?');">
-                                        @csrf
-                                        @method('DELETE')
-                                        <button type="submit" 
-                                                class="px-2 py-0.5 bg-red-600 text-white rounded hover:bg-red-700 text-xs shadow">
-                                            🗑 Delete
-                                        </button>
-                                    </form>
-                                </div>
+                            <td class="px-2 py-1 border text-center">
+                                <a href="{{ route('students.edit', $student->id) }}" 
+                                   class="px-2 py-0.5 bg-yellow-500 text-white rounded hover:bg-yellow-600 text-xs shadow">
+                                    ✏️ Edit
+                                </a>
                             </td>
                         @endif
                     </tr>
@@ -114,7 +99,7 @@
         </table>
     </div>
 
-    {{-- 📜 Pagination --}}
+    {{-- Pagination --}}
     <div class="mt-3">
         {{ $studentsByYear[$tab]->links() }}
     </div>
